@@ -1,0 +1,39 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+
+# Build / packaging artifacts
+*.egg-info/
+build/
+dist/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Environment files
+.env
+local.env
+pasa/.pasa_env
+pasa/.pasa_env.local
+
+# Runtime data
+data/jobs/*
+!data/jobs/.gitkeep
+data/input/
+data/*.pdf
+backend/.cache/
+
+# Logs and temp artifacts
+*.log
+/tmp/
+*.pid
+
+# Python cache (nested)
+**/__pycache__/

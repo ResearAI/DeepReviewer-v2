@@ -1,0 +1,41 @@
+# PASA local runtime configuration template.
+# Copy to a private file and replace values for your machine.
+
+# GPU / server
+PASA_GPU_ID=0
+PASA_SERVER_HOST=0.0.0.0
+PASA_SERVER_PORT=8001
+PASA_INFERENCE_BACKEND=vllm
+
+# Model paths (required)
+PASA_CRAWLER_PATH=/path/to/pasa-7b-crawler
+PASA_SELECTOR_PATH=/path/to/pasa-7b-selector
+PASA_PROMPTS_PATH=pasa/agent_prompt.json
+
+# vLLM endpoints
+PASA_VLLM_HOST=127.0.0.1
+PASA_VLLM_CRAWLER_PORT=8101
+PASA_VLLM_SELECTOR_PORT=8102
+PASA_VLLM_CRAWLER_URL=http://127.0.0.1:8101/v1
+PASA_VLLM_SELECTOR_URL=http://127.0.0.1:8102/v1
+PASA_VLLM_CRAWLER_MODEL_NAME=pasa-crawler
+PASA_VLLM_SELECTOR_MODEL_NAME=pasa-selector
+
+# vLLM tuning
+PASA_VLLM_DTYPE=bfloat16
+PASA_VLLM_MAX_MODEL_LEN=4096
+PASA_VLLM_CRAWLER_GPU_MEMORY_UTILIZATION=0.35
+PASA_VLLM_SELECTOR_GPU_MEMORY_UTILIZATION=0.75
+PASA_VLLM_LOGPROBS=20
+PASA_VLLM_REQUEST_TIMEOUT=300
+
+# Optional proxy
+# http_proxy=
+# https_proxy=
+# no_proxy=127.0.0.1,localhost
+
+# External APIs / datasets
+PASA_SERPER_API_KEY=your_serper_api_key
+PASA_SERPER_SEARCH_URL=https://google.serper.dev/search
+PASA_PAPER_DB=/path/to/cs_paper_2nd.zip
+PASA_PAPER_ID=/path/to/id2paper.json

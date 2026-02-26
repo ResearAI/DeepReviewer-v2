@@ -1,0 +1,7 @@
+{
+    "generate_query": "Please generate some mutually exclusive queries in a list to search the relevant papers according to the User Query. Searching for survey papers would be better.\nUser Query: {user_query}",
+    "select_section": "You are conducting research on `{user_query}`. You need to predict which sections to look at for getting more relevant papers. Title: {title}\nAbstract: {abstract}\nSections: {sections}",
+    "get_selected": "You are an elite researcher in the field of AI, conducting research on {user_query}. Evaluate whether the following paper fully satisfies the detailed requirements of the user query and provide your reasoning. Ensure that your decision and reasoning are consistent.\n\nSearched Paper:\nTitle: {title}\nAbstract: {abstract}\n\nUser Query: {user_query}\n\nOutput format: Decision: True/False\nReason:... \nDecision:",
+    "get_value": "You are conducting research on {user_query}. Evaluate whether the following paper fully satisfies the detailed requirements of the user query and provide your reasoning. Ensure that your decision and reasoning are consistent.\n\nSearched Paper:\nTitle: {title}\nAbstract: {abstract}\n\nUser Query: {user_query}\n\nOutput format: Decision: True/False\nReason:... \nDecision:"
+}
+

@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deepreview2-backend"
+version = "0.1.0"
+description = "Minimal backend-only DeepReviewer 2.0 pipeline"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{name = "DeepReview2 OSS"}]
+dependencies = [
+  "pydantic>=2.8.0",
+  "pydantic-settings>=2.3.0",
+  "httpx>=0.27.0",
+  "openai>=1.50.0",
+  "openai-agents>=0.6.0",
+  "reportlab>=4.2.0",
+  "pypdf>=4.3.0",
+  "fonttools>=4.54.0",
+  "pymupdf>=1.26.0",
+  "mdit-py-plugins>=0.4.2",
+  "markdown-it-py>=3.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "ruff>=0.6.0",
+  "pytest>=8.3.0",
+]
+
+[tool.setuptools]
+packages = [
+  "deepreview",
+  "deepreview.adapters",
+  "deepreview.tools",
+  "deepreview.prompts",
+  "deepreview.report",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
