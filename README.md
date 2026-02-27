@@ -1,6 +1,6 @@
 <div align="center">
 
-# DeepReviewer-2.0 (Backend-Only, Minimal OSS)
+# DeepReviewer-2.0
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](./LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
