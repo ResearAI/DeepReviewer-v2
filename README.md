@@ -1,78 +1,70 @@
 <div align="center">
 
-# DeepReviewer-2.0
+<img src="assets/logo.png" alt="DeepReviewer 2.0 Logo" width="100%"/>
 
+# DeepReviewer 2.0 (Backend-Only OSS)
+
+[![ACL 2025](https://img.shields.io/badge/ACL-2025-1f6feb?style=for-the-badge)](https://aclanthology.org/2025.acl-long.1420/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](./LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![Backend Only](https://img.shields.io/badge/Mode-Backend_Only-0ea5e9?style=for-the-badge)](#)
+[![Mode](https://img.shields.io/badge/Mode-Backend_Only-0ea5e9?style=for-the-badge)](#)
 
-Open-source minimal backend for the DeepReviewer-2.0 pipeline:
+**Human-like deep thinking process for LLM-based paper review.**  
+Open-source minimal backend pipeline:  
+`PDF -> MinerU Markdown -> Review Agent Tool Loop -> Final Markdown -> Final PDF`
 
-**PDF -> MinerU Markdown -> Review Agent Tool Loop -> Final Markdown -> Final PDF**
-
-No frontend, no database, no uvicorn required.
-Run directly with `python main.py ...`.
+[Quick Start](#quick-start) • [Online Platform](#online-platform-and-api) • [Configuration](#configuration) • [CLI Usage](#cli-usage) • [Citation](#citation)
 
 [中文文档](./README.zh-CN.md)
-
-[Quick Start](#quick-start) •
-[Configuration](#configuration) •
-[CLI Usage](#cli-usage) •
-[Output Format](#output-format) •
-[External Services](#external-services) •
-[Troubleshooting](#troubleshooting)
 
 </div>
 
 ---
 
-## Features
+## News
 
-- Minimal backend-only architecture (local JSON storage)
-- End-to-end asynchronous job execution
-- Real-time status polling via CLI
-- Strict review-tool workflow with MCP-like tools
-- Usage accounting:
-  - token usage
-  - tool usage (per-tool counts)
-  - paper-search usage
-- Final artifacts:
-  - `final_report.md`
-  - `final_report.pdf` (website-style export with source-paper appendix + auto annotation overlays)
+- **[2026-03-04]** The **DeepReviewer 2.0 online platform** is now live. It is free for all scholars. Try it out at [deepscientist.cc](https://deepscientist.cc).
+- **[2026-03-04]** After registration, you can use the **DeepReviewer 2.0 API service**: [AI Review API Workflow](https://deepscientist.cc/docs/English/API/AI_Review_API_Workflow).
+- **[2026-03-04]** Video walkthrough: [YouTube Demo](https://www.youtube.com/watch?v=mMg5XzcaDCw).
 
 ---
 
-## Architecture
+## Features
 
-Each job is isolated under:
+| Feature | Description |
+| :--- | :--- |
+| End-to-End Review | Runs full asynchronous review from uploaded PDF to final Markdown and PDF report. |
+| Tool-Grounded Reasoning | Agent uses review tools (`pdf_read_lines`, `pdf_annotate`, `paper_search`, etc.) to produce traceable output. |
+| Usage Accounting | Tracks token usage, per-tool call counts, and paper-search statistics for each job. |
+| Publication-Style Export | Produces `final_report.pdf` with branding, usage summary, source-paper appendix, and annotation overlays. |
+| Minimal Deployment | Backend-only design with local JSON persistence, no frontend and no database required for OSS usage. |
+
+---
+
+## How It Works
+
+Each review job is persisted under:
 
 ```text
 data/jobs/<job_id>/
 ```
 
-Core flow:
+Pipeline:
 
-1. Submit PDF
-2. Upload and parse with MinerU (v4 API)
-3. Build review runtime context and run agent
-4. Agent uses tools (`pdf_read_lines`, `pdf_annotate`, `paper_search`, ...)
-5. Persist final markdown via `review_final_markdown_write`
-6. Export final report PDF with website-aligned renderer:
-   - branded cover (logo)
-   - token usage summary (no points)
-   - appended original source PDF pages
-   - auto overlay callouts from review annotations
+1. Submit source PDF.
+2. Parse with MinerU v4 into markdown and layout metadata.
+3. Build review runtime context and run the review agent.
+4. Agent iterates with tools (`pdf_read_lines`, `pdf_annotate`, `paper_search`, ...).
+5. Persist final markdown with `review_final_markdown_write`.
+6. Export final PDF report with source appendix and overlay callouts.
 
 ---
 
-## Requirements
+## Online Platform And API
 
-- Python `>=3.11`
-- Linux/macOS (Windows also works with command adjustments)
-- Network access to:
-  - LLM endpoint (OpenAI-compatible)
-  - MinerU (recommended production parser)
-  - Optional paper search/read service (PASA or compatible)
+- Web platform: [https://deepscientist.cc](https://deepscientist.cc)
+- API docs (registration required): [https://deepscientist.cc/docs/English/API/AI_Review_API_Workflow](https://deepscientist.cc/docs/English/API/AI_Review_API_Workflow)
+- Demo video: [https://www.youtube.com/watch?v=mMg5XzcaDCw](https://www.youtube.com/watch?v=mMg5XzcaDCw)
 
 ---
 
@@ -94,25 +86,21 @@ pip install -e .
 cp .env.example .env
 ```
 
-Minimum practical setup:
+Minimal practical setup:
 
 ```bash
 # LLM (OpenAI-compatible)
 BASE_URL=http://127.0.0.1:8004/v1
 AGENT_MODEL=gpt-5.2
-# Use Responses API when your provider supports it (otherwise keep false)
 OPENAI_USE_RESPONSES_API=false
-# API key is optional for local gateways without auth
-# OPENAI_API_KEY=...
-# Recommended for local gateways (prevents OpenAI tracing 401 log noise)
 OPENAI_AGENTS_DISABLE_TRACING=1
+# OPENAI_API_KEY=...  # optional if your gateway requires auth
 
 # MinerU
 MINERU_API_TOKEN=your_mineru_token
 
 # Optional PASA adapter
 PAPER_SEARCH_BASE_URL=http://127.0.0.1:8001
-# Optional for local PASA without auth
 PAPER_SEARCH_API_KEY=
 PAPER_SEARCH_ENDPOINT=/pasa/search
 ```
@@ -137,182 +125,64 @@ python main.py result --job-id <job_id> --format pdf
 
 ## Configuration
 
-Copy `.env.example` to `.env`.
+DeepReviewer 2.0 supports generic OpenAI-compatible providers and optional paper-search adapters.
 
-### LLM (OpenAI-compatible)
+### LLM Settings
 
-DeepReviewer-2.0 now supports generic OpenAI-compatible providers.
-In most local deployments, setting only `BASE_URL` is enough.
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `BASE_URL` | Preferred OpenAI-compatible base URL | - |
+| `OPENAI_BASE_URL` / `LLM_BASE_URL` | Alias of base URL | - |
+| `OPENAI_API_KEY` / `API_KEY` / `LLM_API_KEY` | API key if gateway requires auth | Optional |
+| `AGENT_MODEL` | Review model name | `gpt-5.2` |
+| `OPENAI_USE_RESPONSES_API` | Use Responses API when provider supports it | `false` |
+| `OPENAI_AGENTS_DISABLE_TRACING` | Disable tracing noise in local gateways | Recommended `1` |
+| `AGENT_RESUME_ATTEMPTS` | Resume attempts (hard cap) | `2` |
 
-- `BASE_URL` (preferred)
-- `OPENAI_BASE_URL` (alias)
-- `LLM_BASE_URL` (alias)
-- `OPENAI_API_KEY` / `API_KEY` / `LLM_API_KEY` (optional if your gateway requires auth)
-- `AGENT_MODEL` (default: `gpt-5.2`)
-- `OPENAI_USE_RESPONSES_API` (default: `false`; set `true` to use OpenAI Responses API)
-- `AGENT_RESUME_ATTEMPTS` (hard capped to 2)
-- `OPENAI_AGENTS_DISABLE_TRACING` (recommended `1` for local OpenAI-compatible endpoints)
+### Finalization Gates
 
-### Finalization gates
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `ENABLE_FINAL_GATES` | `false` | Enable backend final-write gating |
+| `MIN_PAPER_SEARCH_CALLS_FOR_PDF_ANNOTATE` | `3` | Minimum search calls before dense annotation |
+| `MIN_PAPER_SEARCH_CALLS_FOR_FINAL` | `3` | Minimum search calls before finalization |
+| `MIN_DISTINCT_PAPER_QUERIES_FOR_FINAL` | `3` | Minimum distinct paper queries |
+| `MIN_ANNOTATIONS_FOR_FINAL` | `10` | Minimum annotation count |
+| `MIN_ENGLISH_WORDS_FOR_FINAL` | `0` | Minimum English words (`0` disables) |
+| `FORCE_ENGLISH_OUTPUT` | `true` | Force English final output |
 
-- `ENABLE_FINAL_GATES` (default `false`; set `true` to enforce backend final-write gates)
-- `MIN_PAPER_SEARCH_CALLS_FOR_PDF_ANNOTATE` (default `3`)
-- `MIN_PAPER_SEARCH_CALLS_FOR_FINAL` (default `3`)
-- `MIN_DISTINCT_PAPER_QUERIES_FOR_FINAL` (default `3`)
-- `MIN_ANNOTATIONS_FOR_FINAL` (default `10`)
-- `MIN_ENGLISH_WORDS_FOR_FINAL` (default `0`, disabled)
-- `FORCE_ENGLISH_OUTPUT` (default `true`)
+### MinerU And Paper Search
 
-### MinerU
+| Variable Group | Notes |
+| :--- | :--- |
+| `MINERU_BASE_URL`, `MINERU_API_TOKEN`, `MINERU_MODEL_VERSION` | MinerU parser setup |
+| `PAPER_SEARCH_*`, `PAPER_READ_*` | Optional external retrieval/read services |
 
-- `MINERU_BASE_URL` (default `https://mineru.net/api/v4`)
-- `MINERU_API_TOKEN`
-- `MINERU_MODEL_VERSION` (default `vlm`)
-- `MINERU_ALLOW_LOCAL_FALLBACK` (default `false`)
-
-### Paper search/read
-
-- `PAPER_SEARCH_BASE_URL`
-- `PAPER_SEARCH_API_KEY` (optional for local PASA without auth)
-- `PAPER_SEARCH_ENDPOINT` (default `/pasa/search`)
-- `PAPER_READ_BASE_URL`
-- `PAPER_READ_API_KEY`
-- `PAPER_READ_ENDPOINT` (default `/read`)
-
-If not configured, adapter falls back to arXiv metadata-level search/read.
+If paper search is not configured, the adapter falls back to arXiv metadata-level search/read.
 
 ---
 
 ## CLI Usage
 
-### Submit
+| Command | Purpose |
+| :--- | :--- |
+| `python main.py submit --pdf /path/to/paper.pdf` | Submit a new review job |
+| `python main.py status --job-id <job_id>` | Get one-shot status snapshot |
+| `python main.py watch --job-id <job_id> --interval 2 --timeout 1800` | Poll progress until timeout/completion |
+| `python main.py result --job-id <job_id> --format all` | Fetch markdown + pdf outputs |
 
-```bash
-python main.py submit --pdf /path/to/paper.pdf --title "Optional title" --wait-seconds 10
-```
-
-Behavior:
-
-- If completed within `wait-seconds`: returns `completed=true`
-- Otherwise: returns current status + usage snapshot
-
-### Status
-
-```bash
-python main.py status --job-id <job_id>
-```
-
-### Watch
-
-```bash
-python main.py watch --job-id <job_id> --interval 2 --timeout 1800
-```
-
-### Result
-
-```bash
-python main.py result --job-id <job_id> --format all
-python main.py result --job-id <job_id> --format md
-python main.py result --job-id <job_id> --format pdf
-```
-
----
-
-## Output Format
-
-### `status` response (shape)
-
-```json
-{
-  "job_id": "uuid",
-  "status": "agent_running",
-  "message": "...",
-  "annotation_count": 0,
-  "final_report_ready": false,
-  "pdf_ready": false,
-  "usage": {
-    "token": {
-      "requests": 0,
-      "input_tokens": 0,
-      "output_tokens": 0,
-      "total_tokens": 0
-    },
-    "tool": {
-      "total_calls": 0,
-      "distinct_tools": 0,
-      "per_tool": {}
-    },
-    "paper_search": {
-      "total_calls": 0,
-      "successful_calls": 0,
-      "effective_calls": 0,
-      "papers_found": 0,
-      "distinct_queries": 0
-    }
-  },
-  "artifacts": {
-    "final_markdown_path": null,
-    "report_pdf_path": null
-  }
-}
-```
-
-### Completed artifacts
+### Output artifacts
 
 - `data/jobs/<job_id>/final_report.md`
 - `data/jobs/<job_id>/final_report.pdf`
 - `data/jobs/<job_id>/events.jsonl`
 
 `final_report.pdf` includes:
-- Final markdown report section
-- Token usage summary (input/output/total/requests)
-- Original paper appendix pages
-- Auto-rendered review overlays (when MinerU line bboxes are available)
 
-### Export file formats
-
-`final_report.md` (primary machine-readable review output):
-
-- UTF-8 markdown text generated by `review_final_markdown_write`
-- Contains the full final review content used for archive/export
-- Designed to be directly reusable in downstream pipelines (RAG, QA, post-editing)
-
-`final_report.pdf` (human-facing publication/export output):
-
-- Cover page with report identity and run metadata
-- Token usage fields (no points billing fields)
-- Rendered final markdown body
-- Appended original source PDF pages
-- Automatic overlay callouts mapped from review annotations to source-page regions
-- Footer/header branding and logo assets from `assets/logo-small.png` / `assets/logo.png`
-
-### Job directory files and their roles
-
-Each run is persisted in:
-
-```text
-data/jobs/<job_id>/
-```
-
-Main files:
-
-- `job.json`: authoritative job state snapshot (status, usage, artifact paths, metadata)
-- `events.jsonl`: append-only event timeline (status transitions, tool calls, export stats, failures)
-- `source.pdf`: original uploaded paper
-- `mineru_full.md`: MinerU full markdown parse result of source PDF
-- `mineru_content_list.json`: MinerU structured layout list (page/text/bbox), used for annotation overlay mapping
-- `mineru_result_raw.json`: raw MinerU response payload for debugging/audit
-- `annotations.json`: normalized review annotations created by `pdf_annotate`
-- `agent_prompt.txt`: frozen prompt snapshot used for that run (prompt parity auditing)
-- `final_report.md`: final markdown report persisted by `review_final_markdown_write`
-- `final_report.pdf`: final exported PDF report (report body + source appendix + overlay callouts)
-- `worker.stdout.log`: worker stdout log (usually minimal)
-- `worker.stderr.log`: worker stderr log (runtime warnings/errors, useful for diagnosis)
-
-Possible optional files (depending on model/runtime behavior):
-
-- `agent_final_output.txt`: last raw model final output
-- `agent_final_output_attempt_<n>.txt`: per-attempt raw model outputs in resume mode
+- final markdown content
+- token usage summary (input/output/total/requests)
+- original paper appendix pages
+- auto-rendered review overlays (when MinerU line bboxes are available)
 
 ---
 
@@ -320,43 +190,29 @@ Possible optional files (depending on model/runtime behavior):
 
 ### MinerU (required in strict mode)
 
-1. Register at: `https://mineru.net/`
-2. Generate API token in dashboard
+1. Register at [https://mineru.net/](https://mineru.net/)
+2. Create API token in dashboard
 3. Set `MINERU_API_TOKEN` in `.env`
 
-### PASA (recommended for strong paper retrieval)
+### PASA (recommended for stronger retrieval)
 
-- Chinese local run guide in this repo: `pasa/README.zh-CN.md`
-- Local run guide in this repo: `pasa/README.md`
-- Official repo: `https://github.com/bytedance/pasa`
-- Official README: `https://github.com/bytedance/pasa/blob/main/README.md`
-- Set up models and serving stack per PASA docs + local integration guide above
-- Get Serper token from: `https://serper.dev/` (required by PASA's Google search workflow)
+- Local guide: `pasa/README.md`
+- Chinese local guide: `pasa/README.zh-CN.md`
+- Official repo: [https://github.com/bytedance/pasa](https://github.com/bytedance/pasa)
+- Serper token (required by PASA Google workflow): [https://serper.dev/](https://serper.dev/)
 
-Expose compatible HTTP endpoints (directly or via adapter layer):
+Expose compatible endpoint(s):
 
-- `POST /pasa/search` (default in this repo)
-- `POST /search` (optional compatibility layer)
-
-Then point this project via `PAPER_SEARCH_*` and `PAPER_READ_*`.
-
----
-
-## Notes on Prompt Parity
-
-This repository keeps the review agent **system prompt** aligned with the source DeepReviewer logic.
-The initial **user prompt** is also exactly the same full review prompt string.
+- `POST /pasa/search` (default)
+- `POST /search` (optional compatibility path)
 
 ---
 
 ## Troubleshooting
 
 - `RuntimeError: Agent finished without successful review_final_markdown_write`
-  - Model ended before final write gate.
+  - Model ended before final-write gate completion.
   - Check `events.jsonl` for phase progression and tool usage.
-
-- Repeated final-write attempts
-  - Latest code includes short-circuit and cancellation guards after final persistence.
 
 - MinerU timeout/failure
   - Verify token validity and endpoint reachability.
@@ -366,17 +222,35 @@ The initial **user prompt** is also exactly the same full review prompt string.
 
 ---
 
-## Development
+## Citation
 
-Run static sanity check:
+If you use DeepReview in your research, please cite:
 
-```bash
-python -m compileall deepreview main.py
+```bibtex
+@inproceedings{zhu-etal-2025-deepreview,
+    title = "{D}eep{R}eview: Improving {LLM}-based Paper Review with Human-like Deep Thinking Process",
+    author = "Zhu, Minjun  and
+      Weng, Yixuan  and
+      Yang, Linyi  and
+      Zhang, Yue",
+    editor = "Che, Wanxiang  and
+      Nabende, Joyce  and
+      Shutova, Ekaterina  and
+      Pilehvar, Mohammad Taher",
+    booktitle = "Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)",
+    month = jul,
+    year = "2025",
+    address = "Vienna, Austria",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2025.acl-long.1420/",
+    doi = "10.18653/v1/2025.acl-long.1420",
+    pages = "29330--29355",
+    ISBN = "979-8-89176-251-0"}
 ```
 
 ---
 
 ## License
 
-MIT License. See `LICENSE`.
-Third-party attributions: see `THIRD_PARTY_NOTICES.md`.
+MIT License. See `LICENSE`.  
+Third-party attributions: `THIRD_PARTY_NOTICES.md`.
