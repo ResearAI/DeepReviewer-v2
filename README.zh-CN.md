@@ -5,10 +5,8 @@
 [![ACL 2025](https://img.shields.io/badge/ACL-2025-1f6feb?style=for-the-badge)](https://aclanthology.org/2025.acl-long.1420/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](./LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![Mode](https://img.shields.io/badge/Mode-Backend_Only-0ea5e9?style=for-the-badge)](#)
 
 **面向论文评审的类人深度思考流程。**  
-开源最小后端流程：  
 `PDF -> MinerU Markdown -> Review Agent Tool Loop -> Final Markdown -> Final PDF`
 
 [快速开始](#快速开始) • [在线平台](#在线平台与-api) • [配置说明](#配置说明) • [CLI 用法](#cli-用法) • [引用](#引用)
@@ -35,7 +33,6 @@
 | 工具驱动推理 | Agent 通过 `pdf_read_lines`、`pdf_annotate`、`paper_search` 等工具生成可追踪结果。 |
 | 用量统计 | 每个任务记录 token 用量、工具调用次数和 paper-search 统计。 |
 | 出版风格导出 | 生成 `final_report.pdf`，包含品牌封面、用量摘要、原文附录和批注叠加。 |
-| 最小化部署 | 仅后端 + 本地 JSON 存储，开源版无需前端和数据库。 |
 
 ---
 

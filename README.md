@@ -5,10 +5,8 @@
 [![ACL 2025](https://img.shields.io/badge/ACL-2025-1f6feb?style=for-the-badge)](https://aclanthology.org/2025.acl-long.1420/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](./LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![Mode](https://img.shields.io/badge/Mode-Backend_Only-0ea5e9?style=for-the-badge)](#)
 
 **Human-like deep thinking process for LLM-based paper review.**  
-Open-source minimal backend pipeline:  
 `PDF -> MinerU Markdown -> Review Agent Tool Loop -> Final Markdown -> Final PDF`
 
 [Quick Start](#quick-start) • [Online Platform](#online-platform-and-api) • [Configuration](#configuration) • [CLI Usage](#cli-usage) • [Citation](#citation)
@@ -35,7 +33,6 @@ Open-source minimal backend pipeline:
 | Tool-Grounded Reasoning | Agent uses review tools (`pdf_read_lines`, `pdf_annotate`, `paper_search`, etc.) to produce traceable output. |
 | Usage Accounting | Tracks token usage, per-tool call counts, and paper-search statistics for each job. |
 | Publication-Style Export | Produces `final_report.pdf` with branding, usage summary, source-paper appendix, and annotation overlays. |
-| Minimal Deployment | Backend-only design with local JSON persistence, no frontend and no database required for OSS usage. |
 
 ---
 
