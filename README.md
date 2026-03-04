@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="assets/logo.png" alt="DeepReviewer 2.0 Logo" width="100%"/>
-
-# DeepReviewer 2.0 (Backend-Only OSS)
+# <img src="assets/logo-small.png" alt="DeepReviewer Logo" width="36" valign="middle" /> DeepReviewer 2.0
 
 [![ACL 2025](https://img.shields.io/badge/ACL-2025-1f6feb?style=for-the-badge)](https://aclanthology.org/2025.acl-long.1420/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](./LICENSE)
@@ -245,7 +243,8 @@ If you use DeepReview in your research, please cite:
     url = "https://aclanthology.org/2025.acl-long.1420/",
     doi = "10.18653/v1/2025.acl-long.1420",
     pages = "29330--29355",
-    ISBN = "979-8-89176-251-0"}
+    ISBN = "979-8-89176-251-0"
+}
 ```
 
 ---
