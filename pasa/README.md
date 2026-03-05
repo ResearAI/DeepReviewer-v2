@@ -1,41 +1,41 @@
-# PASA 本地部署说明（DeepReviewer-2.0 适配版）
+# PASA Local Deployment Guide (DeepReviewer-2.0 Adapted Edition)
 
-本目录提供的是一个可直接被 DeepReviewer 调用的 PASA 服务形态：
+This directory provides a PASA service layout that can be called directly by DeepReviewer:
 
-- 2 个 vLLM OpenAI 兼容推理服务（crawler + selector）
-- 1 个 Flask 编排服务（`pasa_server.py`）
-- 1 个统一启停脚本（`start_pasa_server.sh`）
+- Two vLLM OpenAI-compatible inference services (crawler + selector)
+- One Flask orchestrator (`pasa_server.py`)
+- One unified start/stop script (`start_pasa_server.sh`)
 
-DeepReviewer 通过以下配置访问 PASA：
+DeepReviewer accesses PASA with:
 
 - `PAPER_SEARCH_BASE_URL=http://127.0.0.1:8001`
 - `PAPER_SEARCH_ENDPOINT=/pasa/search`
 
 ---
 
-## 官方参考
+## Official References
 
-- PASA 官方仓库：<https://github.com/bytedance/pasa>
-- 官方 README：<https://github.com/bytedance/pasa/blob/main/README.md>
-- Crawler 模型：<https://huggingface.co/bytedance-research/pasa-7b-crawler>
-- Selector 模型：<https://huggingface.co/bytedance-research/pasa-7b-selector>
-- 数据集：<https://huggingface.co/datasets/CarlanLark/pasa-dataset>
-- Serper API 申请：<https://serper.dev/>
+- PASA official repository: <https://github.com/bytedance/pasa>
+- Official README: <https://github.com/bytedance/pasa/blob/main/README.md>
+- Crawler model: <https://huggingface.co/bytedance-research/pasa-7b-crawler>
+- Selector model: <https://huggingface.co/bytedance-research/pasa-7b-selector>
+- Dataset: <https://huggingface.co/datasets/CarlanLark/pasa-dataset>
+- Serper API signup: <https://serper.dev/>
 
 ---
 
-## 1. 环境要求
+## 1. Requirements
 
 - Linux + NVIDIA GPU
-- Python 3.10+（建议 3.11）
-- 可用 CUDA 环境（与 PyTorch / vLLM 版本匹配）
-- 可访问 Hugging Face / arXiv / Serper 网络
+- Python 3.10+ (3.11 recommended)
+- Working CUDA environment (compatible with your PyTorch / vLLM versions)
+- Network access to Hugging Face, arXiv, and Serper
 
 ---
 
-## 2. 安装依赖
+## 2. Install Dependencies
 
-在你的 Python 环境中执行：
+Run this in your Python environment:
 
 ```bash
 cd <repo_root>/pasa
@@ -48,18 +48,18 @@ pip install \
   beautifulsoup4 lxml
 ```
 
-说明：
+Notes:
 
-- `start_pasa_server.sh` 会在启动前检查 `import vllm`。
-- `pasa/pasa/utils.py` 会在导入阶段加载本地 paper DB，请先配置好对应文件路径。
+- `start_pasa_server.sh` checks `import vllm` before startup.
+- `pasa/pasa/utils.py` loads the local paper DB at import time, so configure these file paths first.
 
 ---
 
-## 3. 下载模型与数据
+## 3. Download Models and Data
 
-### 3.1 下载 PASA 模型
+### 3.1 Download PASA Models
 
-示例（`huggingface-cli`）：
+Example using `huggingface-cli`:
 
 ```bash
 # crawler
@@ -71,22 +71,22 @@ huggingface-cli download bytedance-research/pasa-7b-selector \
   --local-dir /data/models/pasa-7b-selector
 ```
 
-然后在 `.pasa_env` 中把路径指向你的本地目录。
+Then point paths in `.pasa_env` to your local model directories.
 
-### 3.2 准备 PASA 检索数据（本地 paper DB）
+### 3.2 Prepare PASA Retrieval Data (Local Paper DB)
 
-当前代码默认会读取：
+The current code reads:
 
-- `PASA_PAPER_DB`（例如 `cs_paper_2nd.zip`）
-- `PASA_PAPER_ID`（例如 `id2paper.json`）
+- `PASA_PAPER_DB` (for example: `cs_paper_2nd.zip`)
+- `PASA_PAPER_ID` (for example: `id2paper.json`)
 
-可从官方数据集页面获取并放到本地后，在 `.pasa_env` 中配置。
+Download them from the official dataset page, store locally, then configure them in `.pasa_env`.
 
 ---
 
-## 4. 配置 PASA 环境文件
+## 4. Configure PASA Environment File
 
-建议先复制模板，再填写：
+Recommended setup:
 
 ```bash
 cd <repo_root>/pasa
@@ -94,11 +94,11 @@ cp .pasa_env.example .pasa_env.local
 vim .pasa_env.local
 ```
 
-说明：
-- `pasa_server.py` 会按顺序读取：`$PASA_ENV_FILE` -> `.pasa_env.local` -> `.pasa_env`
-- 推荐把本机私有配置放在 `.pasa_env.local`，不要提交到仓库
+Notes:
+- `pasa_server.py` loads env files in this order: `$PASA_ENV_FILE` -> `.pasa_env.local` -> `.pasa_env`
+- Keep machine-specific settings in `.pasa_env.local` and do not commit them
 
-关键配置示例：
+Key configuration example:
 
 ```bash
 # GPU
@@ -108,12 +108,12 @@ PASA_GPU_ID=1
 PASA_SERVER_HOST=0.0.0.0
 PASA_SERVER_PORT=8001
 
-# 模型路径（必须存在）
+# Model paths (must exist)
 PASA_CRAWLER_PATH=/data/models/pasa-7b-crawler
 PASA_SELECTOR_PATH=/data/models/pasa-7b-selector
 PASA_PROMPTS_PATH=pasa/agent_prompt.json
 
-# vLLM 服务地址
+# vLLM service endpoints
 PASA_VLLM_HOST=127.0.0.1
 PASA_VLLM_CRAWLER_PORT=8101
 PASA_VLLM_SELECTOR_PORT=8102
@@ -122,41 +122,41 @@ PASA_VLLM_SELECTOR_URL=http://127.0.0.1:8102/v1
 PASA_VLLM_CRAWLER_MODEL_NAME=pasa-crawler
 PASA_VLLM_SELECTOR_MODEL_NAME=pasa-selector
 
-# Serper key（已改为环境变量读取，不再硬编码）
+# Serper key (now read from env var; no longer hardcoded)
 PASA_SERPER_API_KEY=your_serper_api_key
 PASA_SERPER_SEARCH_URL=https://google.serper.dev/search
 
-# 本地 paper DB（按实际路径填写）
+# Local paper DB (set real paths)
 PASA_PAPER_DB=/data/pasa/cs_paper_2nd.zip
 PASA_PAPER_ID=/data/pasa/id2paper.json
 ```
 
 ---
 
-## 5. 启动与停止
+## 5. Start and Stop
 
-### 前台启动（调试推荐）
+### Start in foreground (recommended for debugging)
 
 ```bash
 cd <repo_root>/pasa
 bash start_pasa_server.sh
 ```
 
-### 后台启动（常驻推荐）
+### Start in background (recommended for long-running use)
 
 ```bash
 cd <repo_root>/pasa
 bash start_pasa_server.sh --background
 ```
 
-### 停止所有进程
+### Stop all processes
 
 ```bash
 cd <repo_root>/pasa
 bash start_pasa_server.sh --stop
 ```
 
-### 重启
+### Restart
 
 ```bash
 cd <repo_root>/pasa
@@ -165,21 +165,21 @@ bash start_pasa_server.sh --restart
 
 ---
 
-## 6. 验证服务
+## 6. Verify Service
 
-### 健康检查
+### Health check
 
 ```bash
 curl http://127.0.0.1:8001/health
 ```
 
-期望字段：
+Expected fields:
 
 - `"status": "healthy"`
 - `"crawler_ready": true`
 - `"selector_ready": true`
 
-### 搜索接口测试
+### Search API test
 
 ```bash
 curl -X POST http://127.0.0.1:8001/pasa/search \
@@ -194,7 +194,7 @@ curl -X POST http://127.0.0.1:8001/pasa/search \
   }'
 ```
 
-### 自带测试脚本
+### Built-in test script
 
 ```bash
 cd <repo_root>/pasa
@@ -203,7 +203,7 @@ python test_pasa_decoupling.py
 
 ---
 
-## 7. 接口说明
+## 7. API Endpoints
 
 - `GET /`
 - `GET /health`
@@ -215,9 +215,9 @@ python test_pasa_decoupling.py
 
 ---
 
-## 8. 与 DeepReviewer 集成
+## 8. Integrate with DeepReviewer
 
-在 `<repo_root>/.env` 中设置：
+Set the following in `<repo_root>/.env`:
 
 ```bash
 PAPER_SEARCH_BASE_URL=http://127.0.0.1:8001
@@ -227,21 +227,21 @@ PAPER_SEARCH_API_KEY=
 
 ---
 
-## 9. 常见问题
+## 9. FAQ
 
-1. `vllm` 导入失败
-- 确认启动脚本使用的 Python 环境已安装 `vllm`。
+1. `vllm` import fails
+- Ensure the Python environment used by the startup script has `vllm` installed.
 
-2. 模型路径不存在
-- 检查 `.pasa_env` 的 `PASA_CRAWLER_PATH` 与 `PASA_SELECTOR_PATH`。
+2. Model path does not exist
+- Check `PASA_CRAWLER_PATH` and `PASA_SELECTOR_PATH` in `.pasa_env`.
 
-3. `/health` 不健康
-- 检查 `PASA_VLLM_*_MODEL_NAME` 是否与 vLLM `--served-model-name` 一致。
-- 查看日志：`/tmp/pasa_vllm_crawler.log`、`/tmp/pasa_vllm_selector.log`、`/tmp/pasa_server.log`。
+3. `/health` is unhealthy
+- Ensure `PASA_VLLM_*_MODEL_NAME` matches the vLLM `--served-model-name`.
+- Check logs: `/tmp/pasa_vllm_crawler.log`, `/tmp/pasa_vllm_selector.log`, `/tmp/pasa_server.log`.
 
-4. `/pasa/search` 报错或结果为空
-- 确认 `PASA_SERPER_API_KEY` 已正确配置。
-- 确认网络与代理配置可访问 `google.serper.dev` 与 arXiv。
+4. `/pasa/search` errors or returns empty results
+- Ensure `PASA_SERPER_API_KEY` is configured correctly.
+- Ensure your network/proxy can access `google.serper.dev` and arXiv.
 
-5. 启动时导入 `pasa/pasa/utils.py` 失败
-- 通常是 `PASA_PAPER_DB` 或 `PASA_PAPER_ID` 路径错误，修正后重启。
+5. Importing `pasa/pasa/utils.py` fails on startup
+- Usually caused by invalid `PASA_PAPER_DB` or `PASA_PAPER_ID` paths. Fix paths and restart.

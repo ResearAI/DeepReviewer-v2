@@ -252,6 +252,19 @@ If you use DeepReview in your research, please cite:
 
 ---
 
+## Community & Support
+
+**WeChat Discussion Groups**  
+Scan the QR codes below to join.
+<table>
+  <tr>
+    <td><img src="wechat/wechat1.jpg" width="220" alt="WeChat Group 1"/></td>
+    <td><img src="wechat/wechat2.jpg" width="220" alt="WeChat Group 2"/></td>
+  </tr>
+</table>
+
+---
+
 ## License
 
 MIT License. See `LICENSE`.  

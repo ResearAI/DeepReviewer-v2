@@ -28,6 +28,21 @@ dev = [
   "ruff>=0.6.0",
   "pytest>=8.3.0",
 ]
+pasa = [
+  "flask>=3.0.0",
+  "flask-cors>=5.0.0",
+  "requests>=2.32.0",
+  "beautifulsoup4>=4.12.0",
+  "lxml>=5.3.0",
+  "arxiv>=2.1.0",
+  "transformers>=4.45.0",
+  "torch>=2.4.0",
+  "vllm>=0.6.0",
+  "openai>=1.52,<1.76",
+]
+legacy = [
+  "mcp>=1.0.0",
+]
 
 [tool.setuptools]
 packages = [
