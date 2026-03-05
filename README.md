@@ -9,7 +9,7 @@
 **Human-like deep thinking process for LLM-based paper review.**  
 `PDF -> MinerU Markdown -> Review Agent Tool Loop -> Final Markdown -> Final PDF`
 
-[Quick Start](#quick-start) • [Online Platform](#online-platform-and-api) • [Configuration](#configuration) • [CLI Usage](#cli-usage) • [Citation](#citation)
+[Quick Start](#quick-start) • [Online Platform](#online-platform-and-api) • [Technical Report](#technical-report) • [Configuration](#configuration) • [CLI Usage](#cli-usage) • [Citation](#citation)
 
 [中文文档](./README.zh-CN.md)
 
@@ -60,6 +60,12 @@ Pipeline:
 - Web platform: [https://deepscientist.cc](https://deepscientist.cc)
 - API docs (registration required): [https://deepscientist.cc/docs/English/API/AI_Review_API_Workflow](https://deepscientist.cc/docs/English/API/AI_Review_API_Workflow)
 - Demo video: [https://www.youtube.com/watch?v=mMg5XzcaDCw](https://www.youtube.com/watch?v=mMg5XzcaDCw)
+
+---
+
+## Technical Report
+
+- PDF: [DeepReviewer-v2.pdf](./technical_report/DeepReviewer-v2.pdf)
 
 ---
 

@@ -9,7 +9,7 @@
 **面向论文评审的类人深度思考流程。**  
 `PDF -> MinerU Markdown -> Review Agent Tool Loop -> Final Markdown -> Final PDF`
 
-[快速开始](#快速开始) • [在线平台](#在线平台与-api) • [配置说明](#配置说明) • [CLI 用法](#cli-用法) • [引用](#引用)
+[快速开始](#快速开始) • [在线平台](#在线平台与-api) • [技术报告](#技术报告) • [配置说明](#配置说明) • [CLI 用法](#cli-用法) • [引用](#引用)
 
 [English README](./README.md)
 
@@ -60,6 +60,12 @@ data/jobs/<job_id>/
 - 在线平台：[https://deepscientist.cc](https://deepscientist.cc)
 - API 文档（需注册）：[https://deepscientist.cc/docs/English/API/AI_Review_API_Workflow](https://deepscientist.cc/docs/English/API/AI_Review_API_Workflow)
 - 视频演示：[https://www.youtube.com/watch?v=mMg5XzcaDCw](https://www.youtube.com/watch?v=mMg5XzcaDCw)
+
+---
+
+## 技术报告
+
+- PDF：[DeepReviewer-v2.pdf](./technical_report/DeepReviewer-v2.pdf)
 
 ---
 
