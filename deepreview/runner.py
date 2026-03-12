@@ -15,7 +15,11 @@ from openai.types.shared import Reasoning
 
 from deepreview.adapters.markdown_parser import build_page_index
 from deepreview.adapters.mineru import MineruAdapter, MineruConfig
-from deepreview.adapters.paper_search import PaperReadConfig, PaperSearchAdapter, PaperSearchConfig
+from deepreview.adapters.paper_search import (
+    PaperReadConfig,
+    PaperSearchAdapter,
+    PaperSearchConfig,
+)
 from deepreview.config import get_settings
 from deepreview.prompts.review_agent_prompt import build_review_agent_system_prompt
 from deepreview.report.review_report_pdf import build_review_report_pdf
@@ -51,10 +55,13 @@ def _build_paper_adapter() -> PaperSearchAdapter:
     settings = get_settings()
     return PaperSearchAdapter(
         search_cfg=PaperSearchConfig(
+            enabled=settings.paper_search_enabled,
             base_url=settings.paper_search_base_url,
             api_key=settings.paper_search_api_key,
             endpoint=settings.paper_search_endpoint,
             timeout_seconds=settings.paper_search_timeout_seconds,
+            health_endpoint=settings.paper_search_health_endpoint,
+            health_timeout_seconds=settings.paper_search_health_timeout_seconds,
         ),
         read_cfg=PaperReadConfig(
             base_url=settings.paper_read_base_url,
@@ -95,7 +102,7 @@ def _build_agent_model() -> OpenAIChatCompletionsModel | OpenAIResponsesModel:
 def _build_agent_model_settings(*, tool_choice: str | None = None) -> ModelSettings:
     settings = get_settings()
     model_name = str(settings.agent_model or '').strip().lower()
-    use_xhigh_reasoning = model_name in {'gpt-5.3', 'gpt-5.2'}
+    use_xhigh_reasoning = model_name in {'gpt-5.4', 'gpt-5.3', 'gpt-5.2'}
 
     return ModelSettings(
         temperature=settings.agent_temperature,
@@ -361,12 +368,33 @@ async def run_job_async(job_id: str) -> None:
 
     set_status(job_id, JobStatus.agent_running, 'Running review agent with tool loop...')
 
+    paper_adapter = _build_paper_adapter()
+    paper_search_runtime_state = (await paper_adapter.get_search_runtime_state()).to_dict()
+    append_event(
+        job_id,
+        'paper_search_runtime_state_resolved',
+        enabled=paper_search_runtime_state.get('enabled'),
+        started=paper_search_runtime_state.get('started'),
+        availability=paper_search_runtime_state.get('availability'),
+        base_url=paper_search_runtime_state.get('base_url'),
+        health_url=paper_search_runtime_state.get('health_url'),
+        error=paper_search_runtime_state.get('error'),
+    )
+
+    def apply_paper_search_state(state):
+        metadata = dict(state.metadata)
+        metadata['paper_search_runtime_state'] = dict(paper_search_runtime_state)
+        state.metadata = metadata
+
+    mutate_job_state(job_id, apply_paper_search_state)
+
     prompt = build_review_agent_system_prompt(
         source_file_id=job_id,
         source_file_name=job.source_pdf_name,
         ui_language=settings.ui_language,
         paper_markdown=parse_result.markdown,
         use_meta_review=False,
+        paper_search_runtime_state=paper_search_runtime_state,
     )
     write_text_atomic(Path(artifacts['prompt_snapshot']), prompt)
 
@@ -380,7 +408,8 @@ async def run_job_async(job_id: str) -> None:
         job_dir=Path(artifacts['source_pdf']).parent,
         page_index=page_index,
         source_markdown=parse_result.markdown,
-        paper_adapter=_build_paper_adapter(),
+        paper_adapter=paper_adapter,
+        paper_search_runtime_state=paper_search_runtime_state,
         settings=settings,
     )
 

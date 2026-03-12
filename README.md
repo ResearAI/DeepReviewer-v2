@@ -100,10 +100,15 @@ OPENAI_AGENTS_DISABLE_TRACING=1
 # MinerU
 MINERU_API_TOKEN=your_mineru_token
 
-# Optional PASA adapter
+# Optional external paper search
+PAPER_SEARCH_ENABLED=false
+
+# Enable external search with PASA or a compatible service
+# PAPER_SEARCH_ENABLED=true
 PAPER_SEARCH_BASE_URL=http://127.0.0.1:8001
 PAPER_SEARCH_API_KEY=
 PAPER_SEARCH_ENDPOINT=/pasa/search
+PAPER_SEARCH_HEALTH_ENDPOINT=/health
 ```
 
 ### 3) Submit and track a job
@@ -159,7 +164,7 @@ DeepReviewer 2.0 supports generic OpenAI-compatible providers and optional paper
 | `MINERU_BASE_URL`, `MINERU_API_TOKEN`, `MINERU_MODEL_VERSION` | MinerU parser setup |
 | `PAPER_SEARCH_*`, `PAPER_READ_*` | Optional external retrieval/read services |
 
-If paper search is not configured, the adapter falls back to arXiv metadata-level search/read.
+If `PAPER_SEARCH_ENABLED=false`, or `PAPER_SEARCH_BASE_URL` is empty, or `GET /health` fails, `paper_search` returns `status=not_started` and the run proceeds in retrieval-disabled mode instead of falling back to external search.
 
 ---
 
@@ -201,6 +206,7 @@ If paper search is not configured, the adapter falls back to arXiv metadata-leve
 - Chinese local guide: `pasa/README.zh-CN.md`
 - Official repo: [https://github.com/bytedance/pasa](https://github.com/bytedance/pasa)
 - Serper token (required by PASA Google workflow): [https://serper.dev/](https://serper.dev/)
+- If PASA/external search is not configured, search is not started by default in that run, so automatic novelty comparison is unavailable.
 
 Expose compatible endpoint(s):
 

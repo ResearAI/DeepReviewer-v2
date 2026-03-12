@@ -67,6 +67,7 @@ def _build_review_annotator_prompt(
     source_file_id: str,
     source_file_name: str,
     use_meta_review: bool,
+    paper_search_runtime_state: dict | None = None,
     ui_language: str = 'en',
 ) -> str:
     raw_output = (meta_review_raw_output or '').strip()
@@ -160,8 +161,43 @@ def _build_review_annotator_prompt(
         language_constraint_prefix = language_constraint_block
         language_constraint_suffix = f"\n{language_constraint_block}"
 
+    search_state = paper_search_runtime_state if isinstance(paper_search_runtime_state, dict) else {}
+    search_started = bool(search_state.get('started', True))
+    search_availability = str(search_state.get('availability') or '').strip() or (
+        'ready' if search_started else 'unknown'
+    )
+    search_error = str(search_state.get('error') or '').strip()
+    if search_started:
+        retrieval_runtime_status_block = (
+            "[Runtime Retrieval Status]\n"
+            "External paper search is available for this run. Follow the normal retrieval workflow and gates below.\n\n"
+        )
+        retrieval_runtime_override_line = (
+            "- Runtime retrieval override (highest priority for this run): external paper search is available; "
+            "the normal retrieval workflow and paper_search gate requirements remain active.\n"
+        )
+    else:
+        reason_detail = search_availability
+        if search_error:
+            reason_detail = f'{reason_detail}; {search_error}'
+        retrieval_runtime_status_block = (
+            "[Runtime Retrieval Status]\n"
+            f"External paper search is NOT started for this run ({reason_detail}).\n"
+            "Treat Retrieval-Disabled Mode as active from the beginning of the run.\n"
+            "Do not keep retrying `paper_search` after it returns `status=not_started`.\n"
+            "All mandatory paper_search count/distinct-query requirements in this prompt are waived for this run.\n"
+            "Proceed with manuscript-grounded review and mark novelty/comparison conclusions as deferred manual verification.\n\n"
+        )
+        retrieval_runtime_override_line = (
+            "- Runtime retrieval override (highest priority for this run): external paper search is not started for "
+            "this run. Treat Retrieval-Disabled Mode as active immediately, waive all mandatory paper_search "
+            "count/distinct-query requirements below, avoid repeated paper_search retries, and mark "
+            "novelty/comparison conclusions as deferred manual verification.\n"
+        )
+
     return (
         f"{language_constraint_prefix}"
+        f"{retrieval_runtime_status_block}"
         "You are DeepReviewer 2.0, a professional research paper review model.\n"
         "Primary identity: a highly responsible senior research mentor and paper auditor.\n"
         "Your job is not only to mirror existing reviews, but to perform an independent, technically rigorous audit and then produce high-value PDF annotations.\n"
@@ -177,6 +213,7 @@ def _build_review_annotator_prompt(
         "- Always operate on this bound paper. Do not annotate other files.\n"
         "\n"
         "**AUTHORITATIVE EXECUTION BLOCK (SINGLE SOURCE OF TRUTH FOR MUST/STRICT REQUIREMENTS):**\n"
+        f"{retrieval_runtime_override_line}"
         "- Completion contract (strict): the task is complete only after a successful `review_final_markdown_write` call persists the final report.\n"
         "- Never deliver the final review as plain assistant chat text, unless a system recovery note explicitly switches to no-tool fallback for repeated JSON argument failures.\n"
         "- At every stage, interact through MCP tools (annotations/status/questions/final-write).\n"
@@ -1397,6 +1434,7 @@ def build_review_agent_system_prompt(
     meta_review_raw_output: str = '',
     meta_review_structured_output: dict | None = None,
     use_meta_review: bool = False,
+    paper_search_runtime_state: dict | None = None,
     ui_language: str = 'en',
 ) -> str:
     return _build_review_annotator_prompt(
@@ -1406,6 +1444,7 @@ def build_review_agent_system_prompt(
         source_file_id=source_file_id,
         source_file_name=source_file_name,
         use_meta_review=use_meta_review,
+        paper_search_runtime_state=paper_search_runtime_state,
         ui_language=ui_language,
     )
 

@@ -11,10 +11,13 @@ import httpx
 
 @dataclass
 class PaperSearchConfig:
+    enabled: bool
     base_url: str | None
     api_key: str | None
     endpoint: str
     timeout_seconds: int
+    health_endpoint: str
+    health_timeout_seconds: int
 
 
 @dataclass
@@ -25,14 +28,35 @@ class PaperReadConfig:
     timeout_seconds: int
 
 
+@dataclass
+class PaperSearchRuntimeState:
+    enabled: bool
+    started: bool
+    availability: str
+    base_url: str | None = None
+    health_url: str | None = None
+    error: str | None = None
+
+    def to_dict(self) -> dict:
+        return {
+            'enabled': bool(self.enabled),
+            'started': bool(self.started),
+            'availability': str(self.availability or '').strip(),
+            'base_url': str(self.base_url or '').strip() or None,
+            'health_url': str(self.health_url or '').strip() or None,
+            'error': str(self.error or '').strip() or None,
+        }
+
+
 class PaperSearchAdapter:
     def __init__(self, search_cfg: PaperSearchConfig, read_cfg: PaperReadConfig):
         self.search_cfg = search_cfg
         self.read_cfg = read_cfg
+        self._search_state_cache: PaperSearchRuntimeState | None = None
 
     @property
     def search_configured(self) -> bool:
-        return bool(self.search_cfg.base_url)
+        return bool(self.search_cfg.enabled and self.search_cfg.base_url)
 
     @property
     def read_configured(self) -> bool:
@@ -44,14 +68,161 @@ class PaperSearchAdapter:
         query: str | None = None,
         question_list: list[str] | None = None,
     ) -> dict:
-        if self.search_configured:
+        state = await self.get_search_runtime_state()
+        if not state.started:
+            return self._search_not_started_payload(
+                state=state,
+                query=query,
+                question_list=question_list,
+            )
+        try:
             return await self._search_remote(query=query, question_list=question_list)
-        return await self._search_arxiv_fallback(query=query, question_list=question_list)
+        except Exception as exc:
+            self._search_state_cache = PaperSearchRuntimeState(
+                enabled=bool(self.search_cfg.enabled),
+                started=False,
+                availability='became_unavailable_during_run',
+                base_url=self.search_cfg.base_url,
+                health_url=self._search_health_url(),
+                error=f'{type(exc).__name__}: {exc}',
+            )
+            raise
 
     async def read_papers(self, *, items: list[dict]) -> dict:
         if self.read_configured:
             return await self._read_remote(items)
         return await self._read_arxiv_fallback(items)
+
+    async def get_search_runtime_state(
+        self,
+        *,
+        force_refresh: bool = False,
+    ) -> PaperSearchRuntimeState:
+        if self._search_state_cache is not None and not force_refresh:
+            return self._search_state_cache
+
+        base_url = str(self.search_cfg.base_url or '').strip() or None
+        health_url = self._search_health_url()
+        if not bool(self.search_cfg.enabled):
+            state = PaperSearchRuntimeState(
+                enabled=False,
+                started=False,
+                availability='disabled_by_config',
+                base_url=base_url,
+                health_url=health_url,
+            )
+            self._search_state_cache = state
+            return state
+
+        if not base_url:
+            state = PaperSearchRuntimeState(
+                enabled=True,
+                started=False,
+                availability='missing_base_url',
+                base_url=None,
+                health_url=health_url,
+            )
+            self._search_state_cache = state
+            return state
+
+        if not str(self.search_cfg.health_endpoint or '').strip():
+            state = PaperSearchRuntimeState(
+                enabled=True,
+                started=True,
+                availability='ready',
+                base_url=base_url,
+                health_url=None,
+            )
+            self._search_state_cache = state
+            return state
+
+        headers: dict[str, str] = {}
+        api_key = str(self.search_cfg.api_key or '').strip()
+        if api_key:
+            headers['Authorization'] = f'Bearer {api_key}'
+
+        try:
+            async with httpx.AsyncClient(
+                timeout=max(1, int(self.search_cfg.health_timeout_seconds)),
+            ) as client:
+                response = await client.get(health_url, headers=headers)
+            response.raise_for_status()
+
+            payload = None
+            try:
+                payload = response.json()
+            except Exception:
+                payload = None
+
+            if isinstance(payload, dict):
+                status = str(payload.get('status') or '').strip().lower()
+                if status and status not in {'healthy', 'ok', 'ready'}:
+                    raise RuntimeError(
+                        str(payload.get('error') or payload.get('message') or f'health status={status}')
+                    )
+                if 'models_loaded' in payload and not bool(payload.get('models_loaded')):
+                    raise RuntimeError(
+                        str(payload.get('error') or payload.get('message') or 'models_loaded=false')
+                    )
+
+            state = PaperSearchRuntimeState(
+                enabled=True,
+                started=True,
+                availability='ready',
+                base_url=base_url,
+                health_url=health_url,
+            )
+        except Exception as exc:
+            state = PaperSearchRuntimeState(
+                enabled=True,
+                started=False,
+                availability='health_check_failed',
+                base_url=base_url,
+                health_url=health_url,
+                error=f'{type(exc).__name__}: {exc}',
+            )
+
+        self._search_state_cache = state
+        return state
+
+    def _search_health_url(self) -> str | None:
+        base_url = str(self.search_cfg.base_url or '').strip()
+        health_endpoint = str(self.search_cfg.health_endpoint or '').strip()
+        if not base_url or not health_endpoint:
+            return None
+        return f"{base_url.rstrip('/')}/{health_endpoint.lstrip('/')}"
+
+    def _search_not_started_payload(
+        self,
+        *,
+        state: PaperSearchRuntimeState,
+        query: str | None,
+        question_list: list[str] | None,
+    ) -> dict:
+        questions = [q for q in (question_list or []) if str(q or '').strip()]
+        query_text = str(query or '').strip()
+        if query_text and query_text not in questions:
+            questions = [query_text, *questions]
+
+        return {
+            'status': 'not_started',
+            'success': False,
+            'reason': 'paper_search_not_started',
+            'message': 'External paper search was not started in this run.',
+            'query': query_text,
+            'questions': questions,
+            'papers': [],
+            'count': 0,
+            'question_results': [],
+            'retry_required': False,
+            'next_action': 'enter_retrieval_disabled_mode',
+            'next_steps': [
+                'Proceed without external literature search in this run.',
+                'Mark novelty/comparison conclusions as deferred manual verification.',
+                'If external literature search is required, start the retrieval service and rerun the job.',
+            ],
+            'paper_search_state': state.to_dict(),
+        }
 
     async def _search_remote(
         self,

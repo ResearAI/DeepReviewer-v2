@@ -49,6 +49,18 @@ def _count_papers(result: dict[str, Any]) -> int:
 
 _REVIEW_RECOMMENDED_ANNOTATION_MIN = 12
 _REVIEW_RECOMMENDED_ANNOTATION_MAX = 25
+_RETRIEVAL_DISABLED_AVAILABILITIES = {
+    'disabled_by_config',
+    'missing_base_url',
+    'health_check_failed',
+    'became_unavailable_during_run',
+}
+_RETRIEVAL_DISABLED_FINAL_NOTE = (
+    'External literature search was not started in this run; novelty/comparison conclusions are deferred to manual verification.'
+)
+_RETRIEVAL_DISABLED_REFERENCES_NOTE = (
+    'External literature search was not started in this run; no external references are listed.'
+)
 _FINAL_REPORT_SECTION_HEADING_PATTERN = re.compile(r'^\s{0,3}#{1,6}\s+(.+?)\s*$')
 _REQUIRED_FINAL_REPORT_SECTIONS: list[tuple[str, str, tuple[str, ...]]] = [
     ('summary', 'Summary', ('summary',)),
@@ -87,7 +99,38 @@ _REQUIRED_FINAL_REPORT_SECTIONS: list[tuple[str, str, tuple[str, ...]]] = [
 ]
 
 
-def _build_annotation_gate_hint(*, total_calls: int, required_calls: int) -> str:
+def _paper_search_state_payload(state: Any) -> dict[str, Any]:
+    if not isinstance(state, dict):
+        return {}
+    payload = dict(state)
+    payload['enabled'] = bool(payload.get('enabled'))
+    payload['started'] = bool(payload.get('started'))
+    payload['availability'] = str(payload.get('availability') or '').strip()
+    payload['base_url'] = str(payload.get('base_url') or '').strip() or None
+    payload['health_url'] = str(payload.get('health_url') or '').strip() or None
+    payload['error'] = str(payload.get('error') or '').strip() or None
+    return payload
+
+
+def _paper_search_not_started(state: Any) -> bool:
+    payload = _paper_search_state_payload(state)
+    availability = str(payload.get('availability') or '').strip()
+    if availability in _RETRIEVAL_DISABLED_AVAILABILITIES:
+        return True
+    return availability == 'not_started' or not bool(payload.get('started', True))
+
+
+def _build_annotation_gate_hint(
+    *,
+    total_calls: int,
+    required_calls: int,
+    retrieval_not_started: bool = False,
+) -> str:
+    if retrieval_not_started:
+        return (
+            'External paper search is not started for this run. '
+            'You can start paragraph-by-paragraph PDF annotation without paper_search calls.'
+        )
     if total_calls >= required_calls:
         return (
             f'paper_search total calls so far: {total_calls} (>= {required_calls}). '
@@ -331,6 +374,31 @@ def _build_final_report_markdown_from_sections(sections: dict[str, str]) -> str:
     return '\n\n'.join(blocks).strip()
 
 
+def _apply_retrieval_disabled_report_defaults(
+    sections: dict[str, str],
+    *,
+    retrieval_not_started: bool,
+) -> dict[str, str]:
+    normalized = {key: str(value or '').strip() for key, value in sections.items()}
+    if not retrieval_not_started:
+        return normalized
+
+    novelty_id = 'novelty_verification_related_work_matrix'
+    novelty_text = str(normalized.get(novelty_id) or '').strip()
+    if _RETRIEVAL_DISABLED_FINAL_NOTE.lower() not in novelty_text.lower():
+        normalized[novelty_id] = (
+            f'{novelty_text}\n\n{_RETRIEVAL_DISABLED_FINAL_NOTE}'.strip()
+            if novelty_text
+            else _RETRIEVAL_DISABLED_FINAL_NOTE
+        )
+
+    references_id = 'references'
+    if not str(normalized.get(references_id) or '').strip():
+        normalized[references_id] = _RETRIEVAL_DISABLED_REFERENCES_NOTE
+
+    return normalized
+
+
 def _section_descriptor(section_id: str) -> dict[str, str]:
     title_map = _required_final_report_section_titles()
     return {'id': section_id, 'title': title_map.get(section_id, section_id)}
@@ -390,6 +458,7 @@ class ReviewRuntimeContext:
     page_index: dict[int, list[str]]
     source_markdown: str
     paper_adapter: PaperSearchAdapter
+    paper_search_runtime_state: dict[str, Any]
     settings: Settings
 
     annotations: list[AnnotationItem] = field(default_factory=list)
@@ -580,7 +649,11 @@ def build_review_tools(runtime: ReviewRuntimeContext) -> list[Any]:
     ) -> dict[str, Any]:
         rt = ctx.context
         rt.record_tool('pdf_annotate')
-        required_search_calls = max(0, int(rt.settings.min_paper_search_calls_for_pdf_annotate))
+        paper_search_state_payload = _paper_search_state_payload(rt.paper_search_runtime_state)
+        retrieval_not_started = _paper_search_not_started(paper_search_state_payload)
+        required_search_calls = (
+            0 if retrieval_not_started else max(0, int(rt.settings.min_paper_search_calls_for_pdf_annotate))
+        )
         current_search_calls = max(0, int(rt.paper_search_usage.total_calls))
         paper_search_usage_payload = rt.paper_search_usage.model_dump()
 
@@ -600,6 +673,7 @@ def build_review_tools(runtime: ReviewRuntimeContext) -> list[Any]:
                 'retry_required': True,
                 'retry_tool': 'pdf_annotate',
                 'paper_search_usage': paper_search_usage_payload,
+                'paper_search_state': paper_search_state_payload,
                 'required_paper_search_calls': required_search_calls,
             }
 
@@ -725,6 +799,7 @@ def build_review_tools(runtime: ReviewRuntimeContext) -> list[Any]:
             'severity': ann.severity,
             'summary': ann.summary,
             'paper_search_usage': paper_search_usage_payload,
+            'paper_search_state': paper_search_state_payload,
         }
 
     @function_tool(strict_mode=False)
@@ -738,10 +813,6 @@ def build_review_tools(runtime: ReviewRuntimeContext) -> list[Any]:
 
         questions = normalize_question_list(question_list)
         query_text = str(query or '').strip()
-        if query_text:
-            rt.paper_search_signatures.add(_normalize_signature(query_text))
-        for item in questions:
-            rt.paper_search_signatures.add(_normalize_signature(item))
 
         try:
             result = await rt.paper_adapter.search(
@@ -749,6 +820,7 @@ def build_review_tools(runtime: ReviewRuntimeContext) -> list[Any]:
                 question_list=questions or None,
             )
         except Exception as exc:
+            runtime_state = (await rt.paper_adapter.get_search_runtime_state()).to_dict()
             result = {
                 'success': False,
                 'reason': 'paper_search_request_failed',
@@ -765,30 +837,56 @@ def build_review_tools(runtime: ReviewRuntimeContext) -> list[Any]:
                 ],
                 'retry_required': True,
                 'retry_tool': 'paper_search',
+                'paper_search_state': runtime_state,
             }
 
-        rt.paper_search_usage.total_calls += 1
-        if bool(result.get('success')):
-            rt.paper_search_usage.successful_calls += 1
+        runtime_state_payload = _paper_search_state_payload(
+            result.get('paper_search_state') or rt.paper_search_runtime_state
+        )
+        if runtime_state_payload:
+            rt.paper_search_runtime_state = runtime_state_payload
+
+            def apply_paper_search_state(job):
+                metadata = dict(job.metadata)
+                metadata['paper_search_runtime_state'] = dict(runtime_state_payload)
+                job.metadata = metadata
+
+            mutate_job_state(rt.job_id, apply_paper_search_state)
+
+        retrieval_not_started = (
+            str(result.get('reason') or '').strip() == 'paper_search_not_started'
+            or _paper_search_not_started(runtime_state_payload)
+        )
+
+        if not retrieval_not_started:
+            if query_text:
+                rt.paper_search_signatures.add(_normalize_signature(query_text))
+            for item in questions:
+                rt.paper_search_signatures.add(_normalize_signature(item))
+
+            rt.paper_search_usage.total_calls += 1
+            if bool(result.get('success')):
+                rt.paper_search_usage.successful_calls += 1
 
         paper_count = _count_papers(result)
-        if bool(result.get('success')) and paper_count > 0:
+        if not retrieval_not_started and bool(result.get('success')) and paper_count > 0:
             rt.paper_search_usage.effective_calls += 1
             rt.paper_search_usage.papers_found += paper_count
 
-        discovered = result.get('questions')
-        if isinstance(discovered, list):
-            for q in discovered:
-                rt.paper_search_signatures.add(_normalize_signature(str(q)))
+        if not retrieval_not_started:
+            discovered = result.get('questions')
+            if isinstance(discovered, list):
+                for q in discovered:
+                    rt.paper_search_signatures.add(_normalize_signature(str(q)))
 
-        grouped = result.get('question_results')
-        if isinstance(grouped, list):
-            for row in grouped:
-                if not isinstance(row, dict):
-                    continue
-                q = str(row.get('question') or row.get('query') or '').strip()
-                if q:
-                    rt.paper_search_signatures.add(_normalize_signature(q))
+            grouped = result.get('question_results')
+            if isinstance(grouped, list):
+                for row in grouped:
+                    if not isinstance(row, dict):
+                        continue
+                    q = str(row.get('question') or row.get('query') or '').strip()
+                    if q:
+                        rt.paper_search_signatures.add(_normalize_signature(q))
 
         rt.paper_search_usage.distinct_queries = len({s for s in rt.paper_search_signatures if s})
 
@@ -800,6 +898,8 @@ def build_review_tools(runtime: ReviewRuntimeContext) -> list[Any]:
             questions=questions,
             success=bool(result.get('success')),
             count=paper_count,
+            search_started=not retrieval_not_started,
+            availability=runtime_state_payload.get('availability'),
             distinct_queries=rt.paper_search_usage.distinct_queries,
             reason=str(result.get('reason') or '').strip() or None,
             message=str(result.get('message') or '').strip() or None,
@@ -807,27 +907,42 @@ def build_review_tools(runtime: ReviewRuntimeContext) -> list[Any]:
 
         result_payload = dict(result)
         usage_payload = rt.paper_search_usage.model_dump()
-        required_for_annotate = max(0, int(rt.settings.min_paper_search_calls_for_pdf_annotate))
+        required_for_annotate = (
+            0 if _paper_search_not_started(rt.paper_search_runtime_state)
+            else max(0, int(rt.settings.min_paper_search_calls_for_pdf_annotate))
+        )
         total_calls = max(0, int(rt.paper_search_usage.total_calls))
-        can_start_pdf_annotate = total_calls >= required_for_annotate
+        can_start_pdf_annotate = retrieval_not_started or total_calls >= required_for_annotate
         annotation_gate_hint = _build_annotation_gate_hint(
             total_calls=total_calls,
             required_calls=required_for_annotate,
+            retrieval_not_started=retrieval_not_started,
         )
         result_payload['paper_search_usage'] = usage_payload
+        result_payload['paper_search_state'] = runtime_state_payload
         result_payload['required_paper_search_calls_for_pdf_annotate'] = required_for_annotate
         result_payload['can_start_pdf_annotate'] = can_start_pdf_annotate
         result_payload['annotation_gate_hint'] = annotation_gate_hint
         existing_message = str(result_payload.get('message') or '').strip()
-        if bool(result_payload.get('success')):
+        if retrieval_not_started:
+            pass
+        elif bool(result_payload.get('success')):
             result_payload['message'] = annotation_gate_hint
         elif not existing_message:
             result_payload['message'] = annotation_gate_hint
         result_payload['next_action'] = (
-            'start_pdf_annotate' if can_start_pdf_annotate else 'continue_paper_search'
+            'enter_retrieval_disabled_mode'
+            if retrieval_not_started
+            else ('start_pdf_annotate' if can_start_pdf_annotate else 'continue_paper_search')
         )
-        result_payload['next_steps'] = (
-            [
+        if retrieval_not_started:
+            result_payload['next_steps'] = [
+                'Proceed with manuscript-grounded review in Retrieval-Disabled Mode.',
+                'Do not keep retrying paper_search in this run.',
+                'State that novelty/comparison conclusions are deferred to manual verification.',
+            ]
+        elif can_start_pdf_annotate:
+            result_payload['next_steps'] = [
                 'Start paragraph-by-paragraph annotation with `pdf_search -> pdf_read_lines -> pdf_annotate`.',
                 (
                     'Before each next annotation, perform detailed reasoning on the target text: '
@@ -835,15 +950,14 @@ def build_review_tools(runtime: ReviewRuntimeContext) -> list[Any]:
                 ),
                 'Create at least 10 section/paragraph annotations; usual target range is 12-25 before final report submission.',
             ]
-            if can_start_pdf_annotate
-            else [
+        else:
+            result_payload['next_steps'] = [
                 f'Run more paper_search calls until total calls reach {required_for_annotate}+.',
                 (
                     'After retrieval threshold is met, start step-by-step PDF annotations and '
                     'for each next annotation first verify issue reality and fixability.'
                 ),
             ]
-        )
         return result_payload
 
     @function_tool(strict_mode=False)
@@ -901,8 +1015,14 @@ def build_review_tools(runtime: ReviewRuntimeContext) -> list[Any]:
         usage = rt.paper_search_usage
         section_order = _required_final_report_section_order()
         enforce_final_gates = bool(rt.settings.enable_final_gates)
-        required_paper_calls = max(0, int(rt.settings.min_paper_search_calls_for_final))
-        required_distinct_queries = max(0, int(rt.settings.min_distinct_paper_queries_for_final))
+        paper_search_state_payload = _paper_search_state_payload(rt.paper_search_runtime_state)
+        retrieval_not_started = _paper_search_not_started(paper_search_state_payload)
+        required_paper_calls = (
+            0 if retrieval_not_started else max(0, int(rt.settings.min_paper_search_calls_for_final))
+        )
+        required_distinct_queries = (
+            0 if retrieval_not_started else max(0, int(rt.settings.min_distinct_paper_queries_for_final))
+        )
         required_annotations = max(1, int(rt.settings.min_annotations_for_final))
         normalized_source = str(source or '').strip() or 'review_annotation_agent'
 
@@ -924,6 +1044,7 @@ def build_review_tools(runtime: ReviewRuntimeContext) -> list[Any]:
                 ),
                 'annotation_count': rt.annotation_count,
                 'paper_search_usage': usage.model_dump(),
+                'paper_search_state': paper_search_state_payload,
                 'required_paper_search_calls': required_paper_calls,
                 'completed_sections': _section_descriptor_list(completed_section_ids),
                 'missing_sections': [],
@@ -931,6 +1052,8 @@ def build_review_tools(runtime: ReviewRuntimeContext) -> list[Any]:
             }
 
         def _return_final_write_failure(payload: dict[str, Any]) -> dict[str, Any]:
+            payload = dict(payload)
+            payload['paper_search_state'] = paper_search_state_payload
             rt.sync_state_usage(ctx.usage)
             append_event(
                 rt.job_id,
@@ -1018,6 +1141,10 @@ def build_review_tools(runtime: ReviewRuntimeContext) -> list[Any]:
         has_new_sections = bool(incoming_sections)
         if has_new_sections:
             draft_sections.update(incoming_sections)
+        draft_sections = _apply_retrieval_disabled_report_defaults(
+            draft_sections,
+            retrieval_not_started=retrieval_not_started,
+        )
 
         if not draft_sections:
             return _return_final_write_failure(
@@ -1093,6 +1220,7 @@ def build_review_tools(runtime: ReviewRuntimeContext) -> list[Any]:
                 ],
                 current_section_id=current_section_id,
             )
+            progress_payload['paper_search_state'] = paper_search_state_payload
             rt.sync_state_usage(ctx.usage)
             append_event(
                 rt.job_id,
@@ -1285,6 +1413,7 @@ def build_review_tools(runtime: ReviewRuntimeContext) -> list[Any]:
             'message': 'Final report persisted successfully. End execution now.',
             'annotation_count': rt.annotation_count,
             'paper_search_usage': usage.model_dump(),
+            'paper_search_state': paper_search_state_payload,
             'required_paper_search_calls': required_paper_calls,
             'source': normalized_source,
             'draft_version': draft_version,
