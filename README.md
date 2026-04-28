@@ -100,15 +100,13 @@ OPENAI_AGENTS_DISABLE_TRACING=1
 # MinerU
 MINERU_API_TOKEN=your_mineru_token
 
-# Optional external paper search
-PAPER_SEARCH_ENABLED=false
-
-# Enable external search with PASA or a compatible service
-# PAPER_SEARCH_ENABLED=true
-PAPER_SEARCH_BASE_URL=http://127.0.0.1:8001
-PAPER_SEARCH_API_KEY=
-PAPER_SEARCH_ENDPOINT=/pasa/search
-PAPER_SEARCH_HEALTH_ENDPOINT=/health
+# Recommended paper search: DeepXiv direct API
+PAPER_SEARCH_ENABLED=true
+PAPER_SEARCH_PROVIDER=deepxiv
+DEEPXIV_API_BASE_URL=https://data.rag.ac.cn
+DEEPXIV_API_TOKEN=your_deepxiv_token
+DEEPXIV_RETRIEVE_TOP_K=8
+DEEPXIV_DEFAULT_SOURCE=arxiv
 ```
 
 ### 3) Submit and track a job
@@ -131,7 +129,11 @@ python main.py result --job-id <job_id> --format pdf
 
 ## Configuration
 
-DeepReviewer 2.0 supports generic OpenAI-compatible providers and optional paper-search adapters.
+DeepReviewer 2.0 supports generic OpenAI-compatible providers and two paper-search adapters:
+DeepXiv direct API (`PAPER_SEARCH_PROVIDER=deepxiv`, recommended) and local PASA
+(`PAPER_SEARCH_PROVIDER=pasa`, advanced fallback).
+
+For the full provider setup guide, see `docs/paper_search_providers.md`.
 
 ### LLM Settings
 
@@ -162,9 +164,36 @@ DeepReviewer 2.0 supports generic OpenAI-compatible providers and optional paper
 | Variable Group | Notes |
 | :--- | :--- |
 | `MINERU_BASE_URL`, `MINERU_API_TOKEN`, `MINERU_MODEL_VERSION` | MinerU parser setup |
-| `PAPER_SEARCH_*`, `PAPER_READ_*` | Optional external retrieval/read services |
+| `PAPER_SEARCH_PROVIDER` | `deepxiv` for direct hosted retrieval, or `pasa` for a local PASA service |
+| `DEEPXIV_*` | Recommended DeepXiv direct retrieval settings |
+| `PAPER_SEARCH_*` | PASA-compatible remote search settings used when `PAPER_SEARCH_PROVIDER=pasa` |
+| `PAPER_READ_*` | Optional external paper-read service; unset uses arXiv metadata fallback |
 
-If `PAPER_SEARCH_ENABLED=false`, or `PAPER_SEARCH_BASE_URL` is empty, or `GET /health` fails, `paper_search` returns `status=not_started` and the run proceeds in retrieval-disabled mode instead of falling back to external search.
+DeepXiv direct mode is the default recommended path:
+
+```bash
+PAPER_SEARCH_ENABLED=true
+PAPER_SEARCH_PROVIDER=deepxiv
+DEEPXIV_API_BASE_URL=https://data.rag.ac.cn
+DEEPXIV_API_TOKEN=your_deepxiv_token
+DEEPXIV_RETRIEVE_TOP_K=8
+DEEPXIV_DEFAULT_SOURCE=arxiv
+```
+
+PASA mode is still supported for users who want to run the local retrieval stack:
+
+```bash
+PAPER_SEARCH_ENABLED=true
+PAPER_SEARCH_PROVIDER=pasa
+PAPER_SEARCH_BASE_URL=http://127.0.0.1:8001
+PAPER_SEARCH_ENDPOINT=/pasa/search
+PAPER_SEARCH_HEALTH_ENDPOINT=/health
+```
+
+If `PAPER_SEARCH_ENABLED=false`, the selected provider is missing required settings
+(for example, missing `DEEPXIV_API_TOKEN` in DeepXiv mode), or provider health
+checks fail, `paper_search` returns `status=not_started` and the run proceeds in
+retrieval-disabled mode instead of repeatedly retrying external search.
 
 ---
 
@@ -200,13 +229,41 @@ If `PAPER_SEARCH_ENABLED=false`, or `PAPER_SEARCH_BASE_URL` is empty, or `GET /h
 2. Create API token in dashboard
 3. Set `MINERU_API_TOKEN` in `.env`
 
-### PASA (recommended for stronger retrieval)
+### DeepXiv (recommended)
+
+DeepXiv is the simplest production path because it does not require running PASA
+models locally.
+
+1. Register for a DeepXiv API token.
+2. Set `PAPER_SEARCH_PROVIDER=deepxiv`.
+3. Set `DEEPXIV_API_TOKEN` in `.env`.
+4. Keep `DEEPXIV_API_BASE_URL=https://data.rag.ac.cn` unless your deployment uses a different endpoint.
+
+DeepReviewer calls:
+
+- `GET /stats/usage` for startup health checks.
+- `GET /arxiv/?type=retrieve&query=...&top_k=...&source=...` for `paper_search`.
+
+The `paper_search` tool output format remains the same as PASA-compatible mode,
+so review prompts, gates, and reports do not need separate handling.
+
+### PASA (advanced fallback)
 
 - Local guide: `pasa/README.md`
 - Chinese local guide: `pasa/README.zh-CN.md`
 - Official repo: [https://github.com/bytedance/pasa](https://github.com/bytedance/pasa)
 - Serper token (required by PASA Google workflow): [https://serper.dev/](https://serper.dev/)
 - If PASA/external search is not configured, search is not started by default in that run, so automatic novelty comparison is unavailable.
+
+Configure:
+
+```bash
+PAPER_SEARCH_ENABLED=true
+PAPER_SEARCH_PROVIDER=pasa
+PAPER_SEARCH_BASE_URL=http://127.0.0.1:8001
+PAPER_SEARCH_ENDPOINT=/pasa/search
+PAPER_SEARCH_HEALTH_ENDPOINT=/health
+```
 
 Expose compatible endpoint(s):
 
@@ -223,6 +280,11 @@ Expose compatible endpoint(s):
 
 - MinerU timeout/failure
   - Verify token validity and endpoint reachability.
+
+- DeepXiv search is not started
+  - Verify `PAPER_SEARCH_PROVIDER=deepxiv`.
+  - Verify `DEEPXIV_API_TOKEN` is set.
+  - Verify `DEEPXIV_API_BASE_URL` can serve `/stats/usage`.
 
 - PASA timeout/failure
   - Verify service health and endpoint path (`/pasa/search` vs `/search`).

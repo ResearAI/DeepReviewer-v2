@@ -62,6 +62,12 @@ def _build_paper_adapter() -> PaperSearchAdapter:
             timeout_seconds=settings.paper_search_timeout_seconds,
             health_endpoint=settings.paper_search_health_endpoint,
             health_timeout_seconds=settings.paper_search_health_timeout_seconds,
+            provider=settings.paper_search_provider,
+            deepxiv_base_url=settings.deepxiv_api_base_url,
+            deepxiv_api_token=settings.deepxiv_api_token,
+            deepxiv_timeout_seconds=settings.deepxiv_request_timeout_seconds,
+            deepxiv_top_k=settings.deepxiv_retrieve_top_k,
+            deepxiv_default_source=settings.deepxiv_default_source,
         ),
         read_cfg=PaperReadConfig(
             base_url=settings.paper_read_base_url,

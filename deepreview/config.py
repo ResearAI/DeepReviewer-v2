@@ -66,12 +66,20 @@ class Settings(BaseSettings):
 
     # Optional external paper search/read service
     paper_search_enabled: bool = True
+    paper_search_provider: str = 'deepxiv'
     paper_search_base_url: str | None = None
     paper_search_api_key: str | None = None
     paper_search_endpoint: str = '/pasa/search'
     paper_search_timeout_seconds: int = 120
     paper_search_health_endpoint: str = '/health'
     paper_search_health_timeout_seconds: int = 5
+
+    # Recommended direct DeepXiv search provider
+    deepxiv_api_base_url: str = 'https://data.rag.ac.cn'
+    deepxiv_api_token: str | None = None
+    deepxiv_request_timeout_seconds: int = 60
+    deepxiv_retrieve_top_k: int = 8
+    deepxiv_default_source: str = 'arxiv'
 
     paper_read_base_url: str | None = None
     paper_read_api_key: str | None = None

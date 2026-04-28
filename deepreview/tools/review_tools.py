@@ -109,6 +109,7 @@ def _paper_search_state_payload(state: Any) -> dict[str, Any]:
     payload['base_url'] = str(payload.get('base_url') or '').strip() or None
     payload['health_url'] = str(payload.get('health_url') or '').strip() or None
     payload['error'] = str(payload.get('error') or '').strip() or None
+    payload['provider'] = str(payload.get('provider') or '').strip() or None
     return payload
 
 
